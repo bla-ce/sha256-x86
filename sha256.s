@@ -37,6 +37,16 @@ chunk_example_result  dd 0xda5698be
                       dd 0xbafef9ea
                       dd 0x1837a9d8
 
+chunk_example2 times 64 db 1
+chunk_example_result2 dd 0xb8a4e897
+                      dd 0x3878dcc3
+                      dd 0x904b6c9b
+                      dd 0xdfc4611b
+                      dd 0xbaec1080
+                      dd 0xf767a4fd
+                      dd 0x12a8b15e
+                      dd 0xe16f5b39
+
 section .text
 ; processes a 512-bit chunk
 ; @param  rdi: pointer to the chunk
@@ -90,7 +100,7 @@ _sha256_process_chunk:
   mov   edx, r10d
   shr   edx, 3
 
-  ; r11d = edi xor esi xor edx
+  ; r11d (S0) = edi xor esi xor edx
   xor   edi, esi
   xor   edi, edx
   mov   r11d, edi
@@ -110,10 +120,10 @@ _sha256_process_chunk:
   ror   esi, 19
 
   ; edx = (w[i-2] rightshift 10)
-  mov   edi, r10d
-  shr   edi, 10
+  mov   edx, r10d
+  shr   edx, 10
 
-  ; r12d = edi xor esi xor edx
+  ; r12d (S1) = edi xor esi xor edx
   xor   edi, esi
   xor   edi, edx
   mov   r12d, edi
@@ -365,14 +375,26 @@ _start:
   rep   movsd
 
   ; example to test process_chunk
-  mov   rdi, chunk_example
+  ; mov   rdi, chunk_example
+  ; mov   rsi, hash
+  ; call  _sha256_process_chunk
+  ; test  rax, rax
+  ; jnz   .error
+
+  ; mov   rdi, hash
+  ; mov   rsi, chunk_example_result
+  ; mov   rcx, 8
+  ; rep   cmpsd
+  ; jne   .error
+
+  mov   rdi, chunk_example2
   mov   rsi, hash
   call  _sha256_process_chunk
   test  rax, rax
   jnz   .error
 
   mov   rdi, hash
-  mov   rsi, chunk_example_result
+  mov   rsi, chunk_example_result2
   mov   rcx, 8
   rep   cmpsd
   jne   .error
