@@ -23,11 +23,19 @@ k dd 0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x9
 
 section .data
 hash  times 8 dd 0  ; store the result
-value db 0
+value dq 0
 
 working_hash times 8 dd 0
 
 chunk_example times 64 db 0
+chunk_example_result  dd 0xda5698be
+                      dd 0x17b9b469
+                      dd 0x62335799
+                      dd 0x779fbeca
+                      dd 0x8ce5d491
+                      dd 0xc0d26243
+                      dd 0xbafef9ea
+                      dd 0x1837a9d8
 
 section .text
 ; processes a 512-bit chunk
@@ -207,15 +215,15 @@ _sha256_process_chunk:
   xor   edi, edx
   mov   r11d, edi
 
-  ; r12d (maj) := (a and b) xor (a and c) xor (b and c)
+  ; edi (maj) := (a and b) xor (a and c) xor (b and c)
   mov   edi, dword [working_hash]
   and   edi, dword [working_hash+4]
 
   mov   esi, dword [working_hash]
-  mov   esi, dword [working_hash+2*4]
+  and   esi, dword [working_hash+2*4]
 
   mov   edx, dword [working_hash+4]
-  mov   edx, dword [working_hash+2*4]
+  and   edx, dword [working_hash+2*4]
 
   xor   edi, esi
   xor   edi, edx
@@ -350,12 +358,24 @@ _start:
   test  rax, rax
   jnz   .error
 
+  ; init hash
+  mov   rdi, hash
+  mov   rsi, h0
+  mov   rcx, 8
+  rep   movsd
+
   ; example to test process_chunk
   mov   rdi, chunk_example
   mov   rsi, hash
   call  _sha256_process_chunk
   test  rax, rax
   jnz   .error
+
+  mov   rdi, hash
+  mov   rsi, chunk_example_result
+  mov   rcx, 8
+  rep   cmpsd
+  jne   .error
 
   mov   rdi, 0
   jmp   .exit
