@@ -25,17 +25,20 @@ section .data
 hash  times 8 dd 0  ; store the result
 value db 0
 
+chunk_example times 64 db 0
+
 section .text
 ; processes a 512-bit chunk
 ; @param  rdi: pointer to the chunk
 ; @param  rsi: pointer to the hash
 ; @return rax: return code
-sha256_process_chunk:
-  sub   rsp, 0x10
+_sha256_process_chunk:
+  sub   rsp, 0x10+64  ; entry message schedule array w
 
   ; STACK USAGE
-  ; [rsp]     -> pointer to the chunk
-  ; [rsp+0x8] -> pointer to the hash
+  ; [rsp]       -> pointer to the chunk
+  ; [rsp+0x8]   -> pointer to the hash
+  ; [rsp+0x10]  -> w
 
   mov   [rsp], rdi
   mov   [rsp+0x8], rsi
@@ -46,14 +49,20 @@ sha256_process_chunk:
   test  rsi, rsi
   jz    .error
 
+  ; copy chunk into first half of w
+  lea   rdi, [rsp+0x10]
+  mov   rsi, [rsp]
+  mov   rcx, 16  ; copying words
+  rep   movsw
+
   mov   rax, 0
-  jmp   .error
+  jmp   .return
 
 .error:
   mov   rax, -1
 
 .return:
-  add   rsp, 0x10
+  add   rsp, 0x10+64
   ret
 
 ; hashes the sequence of bytes in rdi using sha256 algorithm
@@ -97,6 +106,13 @@ _start:
   mov   rsi, 0
   mov   rdx, hash
   call  sha256
+  test  rax, rax
+  jnz   .error
+
+  ; example to test process_chunk
+  mov   rdi, chunk_example
+  mov   rsi, hash
+  call  _sha256_process_chunk
   test  rax, rax
   jnz   .error
 
