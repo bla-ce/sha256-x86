@@ -25,6 +25,8 @@ section .data
 hash  times 8 dd 0  ; store the result
 value db 0
 
+working_hash times 8 dd 0
+
 chunk_example times 64 db 0
 
 section .text
@@ -65,6 +67,7 @@ _sha256_process_chunk:
   ; r9d = w[i-15]
   mov   rax, r9
   sub   rax, 15
+  shl   rax, 2
   mov   r10d, dword [rsp+0x10+rax]
 
   ; edi = (w[i-15] rightrotate 7)
@@ -87,6 +90,7 @@ _sha256_process_chunk:
   ; r10d = w[i-2]
   mov   rax, r9
   sub   rax, 2
+  shl   rax, 2
   mov   r10d, dword [rsp+0x10+rax]
 
   ; edi = (w[i-2] rightrotate 17)
@@ -109,11 +113,13 @@ _sha256_process_chunk:
   ; r10d = w[i-16]
   mov   rax, r9
   sub   rax, 16
+  shl   rax, 2
   mov   r10d, dword [rsp+0x10+rax]
 
   ; r13d = w[i-7]
   mov   rax, r9
   sub   rax, 7
+  shl   rax, 2
   mov   r13d, dword [rsp+0x10+rax]
 
   ; w[i] = w[i-16] + r11d + w[i-7] + r12d
@@ -122,12 +128,19 @@ _sha256_process_chunk:
   add   edi, r13d
   add   edi, r12d
 
-  mov   dword [rsp+0x10+r9], edi
+  mov   rax, r9
+  shl   rax, 2
+  mov   dword [rsp+0x10+rax], edi
 
   inc   r9
   jmp   .extend_loop
 
 .extend_loop_end:
+  ; copy init hash to working hash
+  mov   rdi, working_hash
+  mov   rsi, h0
+  mov   rcx, 8
+  rep   movsd
 
   xor   r9, r9
 
@@ -135,6 +148,113 @@ _sha256_process_chunk:
   cmp   r9, 64
   jge   .compression_loop_end
 
+  ; r10d (S1) := (e rightrotate 6) xor (e rightrotate 11) xor (e rightrotate 25)
+  ; edi = (e rightrotate 6)
+  mov   edi, dword [working_hash+4*4]
+  ror   edi, 6
+
+  ; esi = (e rightrotate 11)
+  mov   esi, dword [working_hash+4*4]
+  ror   esi, 11
+
+  ; edx = (e rightrotate 25)
+  mov   edx, dword [working_hash+4*4]
+  ror   edx, 25
+
+  xor   edi, esi
+  xor   edi, edx
+  mov   r10d, edi
+
+  ; r11d (ch) := (e and f) xor ((not e) and g)
+  ; edi = (not e)
+  mov   edi, dword [working_hash+4*4]
+  not   edi
+
+  ; edi = edi and g
+  mov   edx, dword [working_hash+6*4]
+  and   edi, edx
+
+  ; esi = e and f
+  mov   edx, dword [working_hash+4*4]
+  and   edx, dword [working_hash+5*4]
+
+  mov   r11d, edi
+  xor   r11d, edx
+
+  ; r10d (temp1) := h + r10d + ch + k[i] + w[i]
+  add   r10d, dword [working_hash+7*4]
+  add   r10d, r11d
+
+  mov   rax, r9
+  shl   rax, 2
+  add   r10d, dword [k+rax]
+  add   r10d, dword [rsp+0x10+rax]
+
+  ; r11d (S0) := (a rightrotate 2) xor (a rightrotate 13) xor (a rightrotate 22)
+  ; edi = (e rightrotate 6)
+  mov   edi, dword [working_hash]
+  ror   edi, 2
+
+  ; esi = (e rightrotate 11)
+  mov   esi, dword [working_hash]
+  ror   esi, 13
+
+  ; edx = (e rightrotate 25)
+  mov   edx, dword [working_hash]
+  ror   edx, 22
+
+  xor   edi, esi
+  xor   edi, edx
+  mov   r11d, edi
+
+  ; r12d (maj) := (a and b) xor (a and c) xor (b and c)
+  mov   edi, dword [working_hash]
+  and   edi, dword [working_hash+4]
+
+  mov   esi, dword [working_hash]
+  mov   esi, dword [working_hash+2*4]
+
+  mov   edx, dword [working_hash+4]
+  mov   edx, dword [working_hash+2*4]
+
+  xor   edi, esi
+  xor   edi, edx
+
+  ; r11d(temp2) := S0 + maj
+  add   r11d, edi
+
+  ; h := g
+  mov   edi, dword [working_hash+6*4]
+  mov   dword [working_hash+7*4], edi
+
+  ; g := f
+  mov   edi, dword [working_hash+5*4]
+  mov   dword [working_hash+6*4], edi
+
+  ; f := e
+  mov   edi, dword [working_hash+4*4]
+  mov   dword [working_hash+5*4], edi
+
+  ; e := d + temp1
+  mov   edi, dword [working_hash+3*4]
+  add   edi, r10d
+  mov   dword [working_hash+4*4], edi
+
+  ; d := c
+  mov   edi, dword [working_hash+2*4]
+  mov   dword [working_hash+3*4], edi
+
+  ; c := b
+  mov   edi, dword [working_hash+4]
+  mov   dword [working_hash+2*4], edi
+
+  ; b := a
+  mov   edi, dword [working_hash]
+  mov   dword [working_hash+4], edi
+
+  ; a := temp1 + temp2
+  add   r10d, r11d
+  mov   dword [working_hash], r10d
 
   inc   r9
   jmp   .compression_loop
