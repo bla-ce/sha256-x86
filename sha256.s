@@ -33,7 +33,7 @@ section .text
 ; @param  rsi: pointer to the hash
 ; @return rax: return code
 _sha256_process_chunk:
-  sub   rsp, 0x10+64  ; entry message schedule array w
+  sub   rsp, 0x10+256  ; entry message schedule array w 64 * 32bit words
 
   ; STACK USAGE
   ; [rsp]       -> pointer to the chunk
@@ -49,11 +49,96 @@ _sha256_process_chunk:
   test  rsi, rsi
   jz    .error
 
-  ; copy chunk into first half of w
+  ; copy chunk into first 16 words of w
   lea   rdi, [rsp+0x10]
   mov   rsi, [rsp]
-  mov   rcx, 16  ; copying words
-  rep   movsw
+  mov   rcx, 16
+  rep   movsd
+
+  ; extend the first 16 words into the remaining 48 words w[16..63] of the message schedule array
+  mov   r9, 16
+
+.extend_loop:
+  cmp   r9, 64
+  jge   .extend_loop_end
+
+  ; r9d = w[i-15]
+  mov   rax, r9
+  sub   rax, 15
+  mov   r10d, dword [rsp+0x10+rax]
+
+  ; edi = (w[i-15] rightrotate 7)
+  mov   edi, r10d
+  ror   edi, 7
+
+  ; esi = (w[i-15] rightrotate 18)
+  mov   esi, r10d
+  ror   esi, 18
+
+  ; edx = (w[i-15] rightshift 3)
+  mov   edx, r10d
+  shr   edx, 3
+
+  ; r11d = edi xor esi xor edx
+  xor   edi, esi
+  xor   edi, edx
+  mov   r11d, edi
+
+  ; r10d = w[i-2]
+  mov   rax, r9
+  sub   rax, 2
+  mov   r10d, dword [rsp+0x10+rax]
+
+  ; edi = (w[i-2] rightrotate 17)
+  mov   edi, r10d
+  ror   edi, 17
+
+  ; esi = (w[i-2] rightrotate 19)
+  mov   esi, r10d
+  ror   esi, 19
+
+  ; edx = (w[i-2] rightshift 10)
+  mov   edi, r10d
+  shr   edi, 10
+
+  ; r12d = edi xor esi xor edx
+  xor   edi, esi
+  xor   edi, edx
+  mov   r12d, edi
+
+  ; r10d = w[i-16]
+  mov   rax, r9
+  sub   rax, 16
+  mov   r10d, dword [rsp+0x10+rax]
+
+  ; r13d = w[i-7]
+  mov   rax, r9
+  sub   rax, 7
+  mov   r13d, dword [rsp+0x10+rax]
+
+  ; w[i] = w[i-16] + r11d + w[i-7] + r12d
+  mov   edi, r10d
+  add   edi, r11d
+  add   edi, r13d
+  add   edi, r12d
+
+  mov   dword [rsp+0x10+r9], edi
+
+  inc   r9
+  jmp   .extend_loop
+
+.extend_loop_end:
+
+  xor   r9, r9
+
+.compression_loop:
+  cmp   r9, 64
+  jge   .compression_loop_end
+
+
+  inc   r9
+  jmp   .compression_loop
+.compression_loop_end:
 
   mov   rax, 0
   jmp   .return
@@ -62,7 +147,7 @@ _sha256_process_chunk:
   mov   rax, -1
 
 .return:
-  add   rsp, 0x10+64
+  add   rsp, 0x10+256
   ret
 
 ; hashes the sequence of bytes in rdi using sha256 algorithm
