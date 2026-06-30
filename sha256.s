@@ -1,6 +1,6 @@
 global _start
 
-section .data
+section .rodata
 
 ; initial hash values
 h0 dd 0x6a09e667
@@ -21,9 +21,56 @@ k dd 0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x9
   dd 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
   dd 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
 
+section .data
+hash  times 8 dd 0  ; store the result
+value db 0
+
 section .text
 
+; hashes the sequence of bytes in rdi using sha256 algorithm
+; @param  rdi: pointer to the sequence of bytes
+; @param  rsi: length of the sequence
+; @param  rdx: pointer to the hash
+; @return rax: return code
+sha256:
+  sub   rsp, 0x18
+
+  ; STACK USAGE
+  ; [rsp]       -> pointer to the sequence of bytes
+  ; [rsp+0x8]   -> length of the sequence
+  ; [rsp+0x10]  -> pointer to the hash
+
+  mov   [rsp], rdi
+  mov   [rsp+0x8], rsi
+  mov   [rsp+0x10], rdx
+
+  test  rdi, rdi
+  jz    .error
+
+  test  rsi, rsi
+  js    .error
+
+  test  rdx, rdx
+  jz    .error
+
+  mov   rax, 0
+  jmp   .return
+
+.error:
+  mov   rax, -1
+
+.return:
+  add   rsp, 0x18
+  ret
+
 _start:
+  mov   rdi, value
+  mov   rsi, 0
+  mov   rdx, hash
+  call  sha256
+  test  rax, rax
+  jnz   .error
+
   mov   rdi, 0
   jmp   .exit
 

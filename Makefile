@@ -13,8 +13,12 @@ all:
 		$(INCLUDE_FLAGS) $(DEBUG_FLAGS) $(BASE_FLAGS)
 	ld -o $(BIN_DIR)/$(SHA256_PATH) $(BUILD_DIR)/$(SHA256_PATH).o
 
-test:
-	./test.sh
+run:
+	mkdir -p $(BUILD_DIR) $(BIN_DIR)
+	nasm -o $(BUILD_DIR)/$(SHA256_PATH).o $(SHA256_PATH).s \
+		$(INCLUDE_FLAGS) $(DEBUG_FLAGS) $(BASE_FLAGS)
+	ld -o $(BIN_DIR)/$(SHA256_PATH) $(BUILD_DIR)/$(SHA256_PATH).o
+	./$(BIN_DIR)/$(SHA256_PATH)
 
 .PHONY: clean
 clean:
