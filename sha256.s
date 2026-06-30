@@ -26,6 +26,35 @@ hash  times 8 dd 0  ; store the result
 value db 0
 
 section .text
+; processes a 512-bit chunk
+; @param  rdi: pointer to the chunk
+; @param  rsi: pointer to the hash
+; @return rax: return code
+sha256_process_chunk:
+  sub   rsp, 0x10
+
+  ; STACK USAGE
+  ; [rsp]     -> pointer to the chunk
+  ; [rsp+0x8] -> pointer to the hash
+
+  mov   [rsp], rdi
+  mov   [rsp+0x8], rsi
+
+  test  rdi, rdi
+  jz    .error
+
+  test  rsi, rsi
+  jz    .error
+
+  mov   rax, 0
+  jmp   .error
+
+.error:
+  mov   rax, -1
+
+.return:
+  add   rsp, 0x10
+  ret
 
 ; hashes the sequence of bytes in rdi using sha256 algorithm
 ; @param  rdi: pointer to the sequence of bytes
