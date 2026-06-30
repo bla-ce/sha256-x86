@@ -53,6 +53,8 @@ section .text
 ; @param  rsi: pointer to the hash
 ; @return rax: return code
 _sha256_process_chunk:
+  push  r12
+  push  r13
   sub   rsp, 0x10+256  ; entry message schedule array w 64 * 32bit words
 
   ; STACK USAGE
@@ -301,6 +303,8 @@ _sha256_process_chunk:
 
 .return:
   add   rsp, 0x10+256
+  pop   r13
+  pop   r12
   ret
 
 ; hashes the sequence of bytes in rdi using sha256 algorithm
@@ -354,18 +358,25 @@ _start:
   rep   movsd
 
   ; example to test process_chunk
-  ; mov   rdi, chunk_example
-  ; mov   rsi, hash
-  ; call  _sha256_process_chunk
-  ; test  rax, rax
-  ; jnz   .error
+  mov   rdi, chunk_example
+  mov   rsi, hash
+  call  _sha256_process_chunk
+  test  rax, rax
+  jnz   .error
 
-  ; mov   rdi, hash
-  ; mov   rsi, chunk_example_result
-  ; mov   rcx, 8
-  ; rep   cmpsd
-  ; jne   .error
+  mov   rdi, hash
+  mov   rsi, chunk_example_result
+  mov   rcx, 8
+  rep   cmpsd
+  jne   .error
 
+  ; zero out hash
+  mov   rdi, hash
+  mov   rsi, h0
+  mov   rcx, 8
+  rep   movsd
+
+  ; non zero example
   mov   rdi, chunk_example2
   mov   rsi, hash
   call  _sha256_process_chunk
