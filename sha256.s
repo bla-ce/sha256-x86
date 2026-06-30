@@ -260,6 +260,42 @@ _sha256_process_chunk:
   jmp   .compression_loop
 .compression_loop_end:
 
+  ; TODO: in a loop
+  ; Add the compressed chunk to the current hash value
+  mov   rax, [rsp+0x8]
+
+  ; h0 := h0 + a
+  mov   edi, dword [working_hash]
+  add   dword [rax], edi
+
+  ; h1 := h1 + b
+  mov   edi, dword [working_hash+4]
+  add   dword [rax+4], edi
+
+  ; h2 := h2 + c
+  mov   edi, dword [working_hash+2*4]
+  add   dword [rax+2*4], edi
+
+  ; h3 := h3 + d
+  mov   edi, dword [working_hash+3*4]
+  add   dword [rax+3*4], edi
+
+  ; h4 := h4 + e
+  mov   edi, dword [working_hash+4*4]
+  add   dword [rax+4*4], edi
+
+  ; h5 := h5 + f
+  mov   edi, dword [working_hash+5*4]
+  add   dword [rax+5*4], edi
+
+  ; h6 := h6 + g
+  mov   edi, dword [working_hash+6*4]
+  add   dword [rax+6*4], edi
+
+  ; h7 := h7 + h
+  mov   edi, dword [working_hash+7*4]
+  add   dword [rax+7*4], edi
+
   mov   rax, 0
   jmp   .return
 
