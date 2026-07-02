@@ -23,29 +23,9 @@ k dd 0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x9
 
 section .data
 hash  times 8 dd 0  ; store the result
-value dq 0
-
 working_hash times 8 dd 0
 
-chunk_example times 64 db 0
-chunk_example_result  dd 0xda5698be
-                      dd 0x17b9b469
-                      dd 0x62335799
-                      dd 0x779fbeca
-                      dd 0x8ce5d491
-                      dd 0xc0d26243
-                      dd 0xbafef9ea
-                      dd 0x1837a9d8
-
-chunk_example2 times 64 db 1
-chunk_example_result2 dd 0xb8a4e897
-                      dd 0x3878dcc3
-                      dd 0x904b6c9b
-                      dd 0xdfc4611b
-                      dd 0xbaec1080
-                      dd 0xf767a4fd
-                      dd 0x12a8b15e
-                      dd 0xe16f5b39
+value times 27 db 0
 
 section .text
 ; processes a 512-bit chunk
@@ -313,16 +293,19 @@ _sha256_process_chunk:
 ; @param  rdx: pointer to the hash
 ; @return rax: return code
 sha256:
-  sub   rsp, 0x18
+  sub   rsp, 0x20+64
 
   ; STACK USAGE
   ; [rsp]       -> pointer to the sequence of bytes
   ; [rsp+0x8]   -> length of the sequence
-  ; [rsp+0x10]  -> pointer to the hash
+  ; [rsp+0x10]  -> remaining bytes to process
+  ; [rsp+0x18]  -> dynamic pointer to the hash
+  ; [rsp+0x20]  -> temp chunk with padding
 
   mov   [rsp], rdi
   mov   [rsp+0x8], rsi
-  mov   [rsp+0x10], rdx
+  mov   [rsp+0x10], rsi
+  mov   [rsp+0x18], rdx
 
   test  rdi, rdi
   jz    .error
@@ -333,6 +316,39 @@ sha256:
   test  rdx, rdx
   jz    .error
 
+  ; init hash
+  mov   rdi, hash
+  mov   rsi, h0
+  mov   rcx, 8
+  rep   movsd
+
+.loop:
+  mov   rdi, [rsp]
+
+  ; check if we need padding
+  cmp   qword [rsp+0x10], 64
+  jge   .process
+
+  ; we have 0-63 bytes left to process
+  ; TODO: build pad block
+
+.process:
+  mov   rsi, [rsp+0x18]
+  call  _sha256_process_chunk
+  cmp   rax, 0
+  jl    .error
+
+  ; go to next chunk
+  mov   rdi, [rsp]
+  add   rdi, 64
+  mov   [rsp], rdi
+
+  ; 512 bits less to process
+  sub   qword [rsp+0x10], 64
+
+  jmp   .loop
+.loop_end:
+
   mov   rax, 0
   jmp   .return
 
@@ -340,54 +356,16 @@ sha256:
   mov   rax, -1
 
 .return:
-  add   rsp, 0x18
+  add   rsp, 0x20+64
   ret
 
 _start:
   mov   rdi, value
-  mov   rsi, 0
+  mov   rsi, 27
   mov   rdx, hash
   call  sha256
   test  rax, rax
   jnz   .error
-
-  ; init hash
-  mov   rdi, hash
-  mov   rsi, h0
-  mov   rcx, 8
-  rep   movsd
-
-  ; example to test process_chunk
-  mov   rdi, chunk_example
-  mov   rsi, hash
-  call  _sha256_process_chunk
-  test  rax, rax
-  jnz   .error
-
-  mov   rdi, hash
-  mov   rsi, chunk_example_result
-  mov   rcx, 8
-  rep   cmpsd
-  jne   .error
-
-  ; zero out hash
-  mov   rdi, hash
-  mov   rsi, h0
-  mov   rcx, 8
-  rep   movsd
-
-  ; non zero example
-  mov   rdi, chunk_example2
-  mov   rsi, hash
-  call  _sha256_process_chunk
-  test  rax, rax
-  jnz   .error
-
-  mov   rdi, hash
-  mov   rsi, chunk_example_result2
-  mov   rcx, 8
-  rep   cmpsd
-  jne   .error
 
   mov   rdi, 0
   jmp   .exit
