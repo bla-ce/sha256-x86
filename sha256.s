@@ -27,6 +27,11 @@ working_hash times 8 dd 0
 
 value times 27 db 0
 
+chunk_example times 27 db 0
+              db 0x80
+              times 35 db 0
+              db 0xd8
+
 section .text
 ; processes a 512-bit chunk
 ; @param  rdi: pointer to the chunk
@@ -51,11 +56,28 @@ _sha256_process_chunk:
   test  rsi, rsi
   jz    .error
 
-  ; copy chunk into first 16 words of w
   lea   rdi, [rsp+0x10]
   mov   rsi, [rsp]
-  mov   rcx, 16
-  rep   movsd
+
+  xor   r9, r9
+
+.copy_loop:
+  cmp   r9, 16
+  jge   .copy_loop_end
+
+  ; get chunk byte and bswap it
+  mov   eax, dword [rsi]
+  bswap eax
+
+  mov   dword [rdi], eax
+
+  add   rdi, 4
+  add   rsi, 4
+
+  inc   r9
+  jmp   .copy_loop
+
+.copy_loop_end:
 
   ; extend the first 16 words into the remaining 48 words w[16..63] of the message schedule array
   mov   r9, 16
@@ -317,7 +339,7 @@ sha256:
   jz    .error
 
   ; init hash
-  mov   rdi, hash
+  mov   rdi, [rsp+0x18]
   mov   rsi, h0
   mov   rcx, 8
   rep   movsd
@@ -329,8 +351,42 @@ sha256:
   cmp   qword [rsp+0x10], 64
   jge   .process
 
-  ; we have 0-63 bytes left to process
-  ; TODO: build pad block
+  cmp   qword [rsp+0x10], 0
+  jl    .loop_end
+
+  ; zero out chunk
+  lea   rdi, [rsp+0x20]
+  xor   rax, rax
+  mov   rcx, 64
+  rep   stosb
+
+  ; copy bytes remaining
+  lea   rdi, [rsp+0x20]
+  mov   rsi, [rsp]
+  mov   rcx, [rsp+0x10]
+  rep   movsb
+
+  ; add 0x80 at the end of the bytes
+  lea   rdi, [rsp+0x20]
+  add   rdi, [rsp+0x10]
+  mov   byte [rdi], 0x80
+
+  ; add L at the end of the chunk
+  lea   rdi, [rsp+0x20]
+  mov   rax, qword [rsp+0x8]
+  shl   rax, 3
+  bswap rax
+  mov   qword [rdi+56], rax
+
+  ; Cases:
+  ; remaining length is less than 55
+    ; copy bytes, add 0x80, padding and add L
+  ; remaining length is between 56 and 64
+    ; copy bytes, add 0x80 and add padding
+  ; remaining length is 0
+    ; add padding and L at the end
+
+  lea   rdi, [rsp+0x20]
 
 .process:
   mov   rsi, [rsp+0x18]
