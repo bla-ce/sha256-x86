@@ -19,6 +19,8 @@ k dd 0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x9
   dd 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
   dd 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
 
+CHUNK_SIZE equ 64
+
 section .data
 working_hash times 8 dd 0
 
@@ -306,7 +308,7 @@ _sha256_process_chunk:
 ; @return rax: return code
 sha256:
   push  r12
-  sub   rsp, 0x20+64
+  sub   rsp, 0x20+CHUNK_SIZE
 
   ; STACK USAGE
   ; [rsp]       -> pointer to the sequence of bytes
@@ -335,17 +337,19 @@ sha256:
   mov   rcx, 8
   rep   movsd
 
+  xor   r12, r12
+
 .loop:
   mov   rdi, [rsp]
 
   ; check if we need padding
-  cmp   qword [rsp+0x10], 64
+  cmp   qword [rsp+0x10], CHUNK_SIZE
   jge   .process
 
   ; zero out chunk
   lea   rdi, [rsp+0x20]
   xor   rax, rax
-  mov   rcx, 64
+  mov   rcx, CHUNK_SIZE
   rep   stosb
 
   cmp   qword [rsp+0x10], 0
@@ -373,21 +377,18 @@ sha256:
   bswap rax
   mov   qword [rdi+56], rax
 
-  mov   r12, 2
-
-  lea   rdi, [rsp+0x20]
-  jmp   .process
-
-.next_empty_pad:
-  ; next chunk will be empty with size only
   mov   r12, 1
 
   lea   rdi, [rsp+0x20]
   jmp   .process
 
+.next_empty_pad:
+  lea   rdi, [rsp+0x20]
+  jmp   .process
+
 .last_chunk:
   ; check if we are done
-  cmp   r12, 2
+  cmp   r12, 1
   je    .loop_end
 
   ; add L at the end of the chunk
@@ -398,7 +399,7 @@ sha256:
   mov   qword [rdi+56], rax
 
   ; we are done after that
-  mov   r12, 2
+  mov   r12, 1
 
 .process:
   mov   rsi, [rsp+0x18]
@@ -408,11 +409,11 @@ sha256:
 
   ; go to next chunk
   mov   rdi, [rsp]
-  add   rdi, 64
+  add   rdi, CHUNK_SIZE
   mov   [rsp], rdi
 
   ; 512 bits less to process
-  sub   qword [rsp+0x10], 64
+  sub   qword [rsp+0x10], CHUNK_SIZE
 
   jmp   .loop
 .loop_end:
@@ -424,6 +425,6 @@ sha256:
   mov   rax, -1
 
 .return:
-  add   rsp, 0x20+64
+  add   rsp, 0x20+CHUNK_SIZE
   pop   r12
   ret
