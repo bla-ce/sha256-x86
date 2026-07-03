@@ -59,9 +59,7 @@ _sha256_process_chunk:
 
   ; get chunk byte and bswap it
   mov   eax, dword [rsi]
-  bswap eax
-
-  mov   dword [rdi], eax
+  movbe dword [rdi], eax
 
   add   rdi, 4
   add   rsi, 4
@@ -374,8 +372,7 @@ sha256:
   lea   rdi, [rsp+0x20]
   mov   rax, qword [rsp+0x8]
   shl   rax, 3
-  bswap rax
-  mov   qword [rdi+56], rax
+  movbe qword [rdi+56], rax
 
   mov   r12, 1
 
@@ -395,8 +392,7 @@ sha256:
   lea   rdi, [rsp+0x20]
   mov   rax, qword [rsp+0x8]
   shl   rax, 3
-  bswap rax
-  mov   qword [rdi+56], rax
+  movbe qword [rdi+56], rax
 
   ; we are done after that
   mov   r12, 1
