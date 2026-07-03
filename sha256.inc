@@ -1,5 +1,3 @@
-global _start
-
 section .rodata
 
 ; initial hash values
@@ -22,15 +20,7 @@ k dd 0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x9
   dd 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
 
 section .data
-hash  times 8 dd 0  ; store the result
 working_hash times 8 dd 0
-
-value times 27 db 0
-
-chunk_example times 27 db 0
-              db 0x80
-              times 35 db 0
-              db 0xd8
 
 section .text
 ; processes a 512-bit chunk
@@ -160,7 +150,7 @@ _sha256_process_chunk:
 .extend_loop_end:
   ; copy init hash to working hash
   mov   rdi, working_hash
-  mov   rsi, h0
+  mov   rsi, [rsp+0x8]
   mov   rcx, 8
   rep   movsd
 
@@ -315,6 +305,7 @@ _sha256_process_chunk:
 ; @param  rdx: pointer to the hash
 ; @return rax: return code
 sha256:
+  push  r12
   sub   rsp, 0x20+64
 
   ; STACK USAGE
@@ -351,14 +342,14 @@ sha256:
   cmp   qword [rsp+0x10], 64
   jge   .process
 
-  cmp   qword [rsp+0x10], 0
-  jl    .loop_end
-
   ; zero out chunk
   lea   rdi, [rsp+0x20]
   xor   rax, rax
   mov   rcx, 64
   rep   stosb
+
+  cmp   qword [rsp+0x10], 0
+  jl    .last_chunk
 
   ; copy bytes remaining
   lea   rdi, [rsp+0x20]
@@ -371,6 +362,10 @@ sha256:
   add   rdi, [rsp+0x10]
   mov   byte [rdi], 0x80
 
+  ; check if remaining length is smaller than 56
+  cmp   qword [rsp+0x10], 56
+  jg    .next_empty_pad
+
   ; add L at the end of the chunk
   lea   rdi, [rsp+0x20]
   mov   rax, qword [rsp+0x8]
@@ -378,15 +373,32 @@ sha256:
   bswap rax
   mov   qword [rdi+56], rax
 
-  ; Cases:
-  ; remaining length is less than 55
-    ; copy bytes, add 0x80, padding and add L
-  ; remaining length is between 56 and 64
-    ; copy bytes, add 0x80 and add padding
-  ; remaining length is 0
-    ; add padding and L at the end
+  mov   r12, 2
 
   lea   rdi, [rsp+0x20]
+  jmp   .process
+
+.next_empty_pad:
+  ; next chunk will be empty with size only
+  mov   r12, 1
+
+  lea   rdi, [rsp+0x20]
+  jmp   .process
+
+.last_chunk:
+  ; check if we are done
+  cmp   r12, 2
+  je    .loop_end
+
+  ; add L at the end of the chunk
+  lea   rdi, [rsp+0x20]
+  mov   rax, qword [rsp+0x8]
+  shl   rax, 3
+  bswap rax
+  mov   qword [rdi+56], rax
+
+  ; we are done after that
+  mov   r12, 2
 
 .process:
   mov   rsi, [rsp+0x18]
@@ -413,22 +425,5 @@ sha256:
 
 .return:
   add   rsp, 0x20+64
+  pop   r12
   ret
-
-_start:
-  mov   rdi, value
-  mov   rsi, 27
-  mov   rdx, hash
-  call  sha256
-  test  rax, rax
-  jnz   .error
-
-  mov   rdi, 0
-  jmp   .exit
-
-.error:
-  mov   rdi, -1
-
-.exit:
-  mov   rax, 60
-  syscall
