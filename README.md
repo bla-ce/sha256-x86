@@ -4,6 +4,9 @@ x86 implementation of the sha256 algorithm, as defined in the [Wikipedia](https:
 
 The file can be copied and used as a library in your x86 projects
 
+> [!NOTE]
+> Yes, I know the Intel architecture has instructions for performing SHA-256 rounds, and that would be quicker, but that would defeat the object of the exercise, which is to learn. 
+
 ## Usage
 
 ```assembly
