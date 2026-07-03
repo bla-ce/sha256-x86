@@ -1,4 +1,4 @@
-# sha256-x86 (IN PROGRESS)
+# sha256-x86
 
 x86 implementation of the sha256 algorithm, as defined in the [Wikipedia](https://en.wikipedia.org/wiki/SHA-2#Pseudocode) page
 
